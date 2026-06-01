@@ -135,3 +135,74 @@ theorem sequential_implies_continuous {α β} (f : List α → List β) :
       change A.automata.evalFrom A.automata.start (MM.eval word) ∈ A.automata.accept
       rw [MMeqf]
       exact fpreimage
+
+def MealyComposeMealyMachine {α β γ statesM₁ statesM₂} (MM₁ : MealyMachine α statesM₁ β)
+ (MM₂ : MealyMachine β statesM₂ γ) : MealyMachine α (statesM₁ × statesM₂) γ :=
+  letI : Fintype statesM₁ := MM₁.statesFin
+  letI : Fintype statesM₂ := MM₂.statesFin
+  letI : Fintype α := MM₁.alphaFin
+  letI : Fintype γ := MM₂.betaFin
+  let startState : statesM₁ × statesM₂ := (MM₁.start, MM₂.start)
+  have transitionFunction (startState : statesM₁ × statesM₂) (letter : α)
+  : γ × (statesM₁ × statesM₂) :=
+    let ⟨mealyState₁,mealyState₂⟩ := startState
+    let ⟨letter',mealyState₁'⟩ := MM₁.step mealyState₁ letter
+    let ⟨letter'',mealyState₂'⟩ := MM₂.step mealyState₂ letter'
+    ⟨letter'' , ⟨mealyState₁', mealyState₂'⟩⟩
+  {
+    step := transitionFunction
+    start := startState
+  }
+
+theorem MCMM_evalFrom {α β γ statesM₁ statesM₂} (MM₁ : MealyMachine α statesM₁ β)
+ (MM₂ : MealyMachine β statesM₂ γ) (word : List α) :
+  ∀ (s : statesM₁ × statesM₂), (MealyComposeMealyMachine MM₁ MM₂).evalFrom s word =
+  MM₂.evalFrom s.2 (MM₁.evalFrom s.1 word) := by
+    rw [MealyComposeMealyMachine]
+    dsimp
+    induction word with
+    | nil =>
+    intro s
+    simp only [evalFrom]
+    | cons head tail ih =>
+    intro s
+    simp only [evalFrom]
+    rw [ih ((MM₁.4 s.1 head).2, (MM₂.4 s.2 (MM₁.4 s.1 head).1).2)]
+
+theorem MCMM_evalFrom_eq {α β γ statesM₁ statesM₂} (MM₁ : MealyMachine α statesM₁ β)
+ (MM₂ : MealyMachine β statesM₂ γ) (word : List α) (s : statesM₁ × statesM₂) :
+(MealyComposeMealyMachine MM₁ MM₂).evalFrom s word =
+  MM₂.evalFrom s.2 (MM₁.evalFrom s.1 word) := by
+  apply MCMM_evalFrom
+
+theorem comp_of_sequential_is_sequential {α β γ} (f : List α → List β) (g : List β → List γ) :
+  sequentialFunction f → sequentialFunction g → sequentialFunction (g ∘ f) := by
+  intro seqf seqg
+  simp only [sequentialFunction] at seqf seqg
+  obtain ⟨statesM₁ , MM₁ , MM₁eqf⟩ := seqf
+  obtain ⟨statesM₂ , MM₂ , MM₂eqg⟩ := seqg
+  use statesM₁ × statesM₂
+  refine ⟨?_, ?_⟩
+  · exact MealyComposeMealyMachine  MM₁ MM₂
+  · set M := MealyComposeMealyMachine  MM₁ MM₂ with hM
+    change M.evalFrom M.start = (g ∘ f)
+    ext word i output
+    constructor
+    · intro comp
+      rw [MCMM_evalFrom_eq MM₁ MM₂ word M.start] at comp
+      have : MM₂.evalFrom M.start.2 (MM₁.evalFrom M.start.1 word) = g (f word) := by
+        rw [← MM₁eqf]
+        rw [← MM₂eqg]
+        rfl
+      rw [this] at comp
+      exact comp
+    · intro comp
+      rw [MCMM_evalFrom_eq MM₁ MM₂ word M.start]
+      have : MM₂.evalFrom M.start.2 (MM₁.evalFrom M.start.1 word) = g (f word) := by
+        rw [← MM₁eqf]
+        rw [← MM₂eqg]
+        rfl
+      rw [this]
+      exact comp
+
+end MealyMachine
