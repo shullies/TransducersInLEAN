@@ -175,7 +175,7 @@ theorem MCMM_evalFrom_eq {α β γ statesM₁ statesM₂} (MM₁ : MealyMachine 
   MM₂.evalFrom s.2 (MM₁.evalFrom s.1 word) := by
   apply MCMM_evalFrom
 
-theorem comp_of_sequential_is_sequential {α β γ} (f : List α → List β) (g : List β → List γ) :
+theorem composition_of_sequential_is_sequential {α β γ} (f : List α → List β) (g : List β → List γ) :
   sequentialFunction f → sequentialFunction g → sequentialFunction (g ∘ f) := by
   intro seqf seqg
   simp only [sequentialFunction] at seqf seqg
@@ -204,5 +204,110 @@ theorem comp_of_sequential_is_sequential {α β γ} (f : List α → List β) (g
         rfl
       rw [this]
       exact comp
+
+def nextState {α σ β}
+  (MM : MealyMachine α σ β) (a : α) : σ → σ :=
+fun s =>
+  match MM.step s a with
+  | (_, s') => s'
+
+def ReversibleMealyMachine {α σ β}
+  (MM : MealyMachine α σ β) : Prop :=
+  ∀ a : α,
+    Function.Bijective (nextState MM a)
+
+def FlipFlopMachine {α σ β}
+  (MM : MealyMachine α σ β) : Prop :=
+  ∀ a : α,
+    nextState MM a = id ∨
+    ∃ s₀ : σ,
+      nextState MM a = fun _ => s₀
+
+def PrimeMachine {α σ β}
+  (MM : MealyMachine α σ β) : Prop :=
+  ReversibleMealyMachine MM ∨ FlipFlopMachine MM
+
+def ForwardMachine {α β σ} (γ : Type)
+  (MM : MealyMachine α σ β)
+  [Fintype γ] :
+  MealyMachine (γ × α) σ (γ × β) :=
+  letI : Fintype σ := MM.statesFin
+  letI : Fintype α := MM.alphaFin
+  letI : Fintype β := MM.betaFin
+  letI : Fintype (γ × α) := inferInstance
+  letI : Fintype (γ × β) := inferInstance
+  let stepFunction (s : σ) (input : γ × α) : (γ × β) × σ :=
+    let (g, a) := input
+    let (b, s') := MM.step s a
+    ((g, b), s')
+  {
+    step := stepFunction,
+    start := MM.start,
+    alphaFin := inferInstance,
+    betaFin := inferInstance,
+    statesFin := MM.statesFin
+  }
+
+
+theorem ForwardMachine_evalFrom
+  {α β σ} (γ : Type)
+  (MM : MealyMachine α σ β)
+  [Fintype γ]
+  (word : List (γ × α)) :
+  ∀ s : σ,
+    let (i₁, i₂) := word.unzip
+    let (l₁, l₂) := List.unzip ((ForwardMachine γ MM).evalFrom s word)
+    l₁ = i₁ ∧ l₂ = MM.evalFrom s i₂ := by
+  induction word with
+  | nil =>
+    intro s
+    simp only [evalFrom, List.unzip, List.unzip_nil]
+    trivial
+  | cons head tail ih =>
+    intro s
+    simp only [evalFrom, List.unzip]
+    simp only [ForwardMachine]
+    specialize ih (MM.4 s head.2).2
+    simp only [ForwardMachine] at ih
+    obtain ⟨ih₁, ih₂⟩ := ih
+    constructor
+    · rw [ih₁]
+    · rw [ih₂]
+
+theorem ForwardMachine_is_prime_if_MM_is_prime {α β σ γ}
+(MM : MealyMachine α σ β) [Fintype γ] (hMM : PrimeMachine MM) :
+  PrimeMachine (ForwardMachine γ MM) := by
+  cases hMM with
+  | inl hRev =>
+  left
+  intro letter
+  specialize hRev letter.2
+  obtain ⟨hInj,hSur⟩ := hRev
+  constructor
+  · intro s₁ s₂ h
+    simp only [ForwardMachine,nextState] at h
+    simp only [Function.Injective] at hInj
+    apply hInj h
+  · intro s₁
+    specialize hSur s₁
+    obtain ⟨prevState, pSur⟩ := hSur
+    use prevState
+    simp only [ForwardMachine,nextState]
+    use pSur
+  | inr hFlip =>
+  right
+  intro letter
+  cases hFlip letter.2 with
+  | inl h =>
+  left
+  simp only [ForwardMachine]
+  apply h
+  | inr h =>
+  right
+  obtain ⟨ state, proof ⟩ := h
+  use state
+  apply proof
+
+
 
 end MealyMachine
