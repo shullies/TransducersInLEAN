@@ -1,6 +1,8 @@
 import Mathlib.Computability.Language
 import Mathlib.Computability.DFA
 
+#check List.reverseRecOn
+#check DFA.evalFrom
 
 universe u v w
 
@@ -13,15 +15,21 @@ structure MealyMachine (α : Type u) (σ : Type v) (β : Type w) where
 
 namespace MealyMachine
 
-def evalFrom { α σ β } ( s : σ )  (m : MealyMachine α σ β) (l : List α) : List β :=
+def evalFrom {α σ β} (s : σ) (m : MealyMachine α σ β) (l : List α) : List β :=
   match l with
   | [] => []
   | List.cons h t =>
     let ( outLetter , stateNew ) := m.step s h
     List.cons outLetter ( evalFrom stateNew m t )
 
+def evalstate {α σ β} (s : σ) (m : MealyMachine α σ β) (l : List α) : σ :=
+  match l with
+  | [] => s
+  | List.cons h t =>
+    let ( _outLetter , stateNew ) := m.step s h
+    evalstate stateNew m t
 
-def eval { α σ β } (m : MealyMachine α σ β) (l : List α ) : List β :=
+def eval {α σ β} (m : MealyMachine α σ β) (l : List α) : List β :=
   evalFrom m.start m l
 
 structure finiteDFA (α β) where
@@ -39,6 +47,56 @@ def regularContinuous {α β} (f : List α → List β) : Prop :=
   ∀ (l : Language β), regularLanguage l → regularLanguage (f⁻¹'l)
 
 
+def MealyComposeAutomata {α β statesM statesA} (MM : MealyMachine α statesM β) (dfa : DFA β statesA) :
+  DFA α (statesM × statesA) :=
+  have transitionFunction (startState : statesM × statesA) (letter : α) : statesM × statesA :=
+    let ⟨mealyState,automataState⟩ := startState
+    let ⟨letter',mealyState'⟩ := MM.step mealyState letter
+    let automataState' := dfa.step automataState letter'
+    ⟨mealyState',automataState'⟩
+  have startState : statesM × statesA :=
+    ⟨MM.start, dfa.start⟩
+  have acceptState : Set (statesM × statesA) :=
+    {s| s.2 ∈ dfa.accept}
+  {
+    step := transitionFunction
+    start := startState
+    accept := acceptState
+  }
+
+def MealyComposeFiniteAutomata {α β statesM statesA} (MM : MealyMachine α statesM β)
+(dfa : finiteDFA β statesA) : finiteDFA α (statesM × statesA) :=
+  letI : Fintype statesM := MM.statesFin
+  letI : Fintype statesA := dfa.statesFin
+  letI : Fintype α := MM.alphaFin
+  { automata := MealyComposeAutomata MM dfa.automata}
+
+theorem MCFA_state_transition {α β statesM statesA} (MM : MealyMachine α statesM β)
+(dfa : finiteDFA β statesA) (word : List α) :
+  ∀ (s : statesM × statesA), (MealyComposeFiniteAutomata MM dfa).automata.evalFrom s word =
+  ⟨ MM.evalstate s.1  word, dfa.automata.evalFrom s.2 (MM.evalFrom s.1 word) ⟩ := by
+    rw [MealyComposeFiniteAutomata,MealyComposeAutomata]
+    dsimp
+    induction word with
+    | nil =>
+    intro s
+    rw [evalstate]
+    simp only [DFA.evalFrom,evalFrom,List.foldl]
+    | cons head tail ih =>
+    intro s
+    simp only [DFA.evalFrom,evalFrom,evalstate]
+    simp only [DFA.evalFrom] at ih
+    rw [List.foldl]
+    dsimp
+    rw [ih ((MM.4 s.1 head).2, dfa.automata.step s.2 (MM.4 s.1 head).1)]
+
+theorem MCFA_state_transition_eq {α β statesM statesA} (MM : MealyMachine α statesM β)
+(dfa : finiteDFA β statesA) (word : List α) (s : statesM × statesA) :
+(MealyComposeFiniteAutomata MM dfa).automata.evalFrom s word =
+⟨ MM.evalstate s.1  word, dfa.automata.evalFrom s.2 (MM.evalFrom s.1 word) ⟩ := by
+  apply MCFA_state_transition
+
+
 theorem sequential_implies_continuous {α β} (f : List α → List β) :
   sequentialFunction f → regularContinuous f := by
   intro seq
@@ -52,26 +110,28 @@ theorem sequential_implies_continuous {α β} (f : List α → List β) :
   use statesM × statesA
   /- -/
   refine ⟨?_, ?_⟩
-  · letI : Fintype statesM := MM.statesFin
-    letI : Fintype statesA := A.statesFin
-    letI : Fintype α := MM.alphaFin
-    refine ⟨?_⟩
-
-    have transitionFunction (startState : statesM × statesA) (letter : α) : statesM × statesA :=
-      let ⟨mealyState,automataState⟩ := startState
-      let ⟨letter',mealyState'⟩ := MM.step mealyState letter
-      let automataState' := A.automata.step automataState letter'
-      ⟨mealyState',automataState'⟩
-
-    have startState : statesM × statesA :=
-      ⟨MM.start, A.automata.start⟩
-
-    have acceptState : Set (statesM × statesA) :=
-      {s| s.2 ∈ A.automata.accept}
-    exact {
-      step := transitionFunction
-      start := startState
-      accept := acceptState
-    }
-  
-  · sorry
+  · exact MealyComposeFiniteAutomata MM A
+  · ext word
+    constructor
+    · intro MCFAaccept
+      change f (word) ∈ l
+      simp only [DFA.accepts,DFA.acceptsFrom] at MCFAaccept
+      set M := (MM.MealyComposeFiniteAutomata A).automata with hM
+      change M.evalFrom M.start word ∈ M.accept at MCFAaccept
+      rw [MCFA_state_transition_eq MM A word M.start] at MCFAaccept
+      change A.automata.evalFrom A.automata.start (MM.eval word) ∈ A.automata.accept at MCFAaccept
+      rw [MMeqf] at MCFAaccept
+      rw [← Aeql]
+      exact MCFAaccept
+    /- -/
+    · intro fpreimage
+      change (MealyComposeFiniteAutomata MM A).automata.accepts word
+      change f (word) ∈ l at fpreimage
+      rw [← Aeql] at fpreimage
+      simp only [DFA.accepts,DFA.acceptsFrom]
+      set M := (MM.MealyComposeFiniteAutomata A).automata with hM
+      change M.evalFrom M.start word ∈ M.accept
+      rw [MCFA_state_transition_eq MM A word M.start]
+      change A.automata.evalFrom A.automata.start (MM.eval word) ∈ A.automata.accept
+      rw [MMeqf]
+      exact fpreimage
