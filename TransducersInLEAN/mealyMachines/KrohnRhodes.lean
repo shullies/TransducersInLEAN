@@ -93,6 +93,127 @@ def revMachine {M}
     start := ⟨1, Submonoid.one_mem _⟩
 }
 
+theorem f_is_bijective
+    {M : Type*} [Monoid M] [Fintype M]
+    (G : Set M)
+    (h_equalsm :
+      ∀ g ∈ G,
+        (fun x ↦ x * g) '' (Submonoid.closure G : Set M)
+          = (Submonoid.closure G : Set M))
+    (g : M) (hg : g ∈ G) :
+    Function.Bijective
+      (fun (x : Submonoid.closure G) ↦
+        (⟨(x : M) * g, Submonoid.mul_mem (Submonoid.closure G) x.2 (Submonoid.subset_closure hg)⟩ : Submonoid.closure G)) := by
+  rw [← Finite.surjective_iff_bijective]
+  intro y
+  have hy_mem : (y : M) ∈ (Submonoid.closure G : Set M) := y.2
+  have h_surj := h_equalsm g hg
+  have hy_in_image : (y : M) ∈ (fun x ↦ x * g) '' (Submonoid.closure G : Set M) := by
+    rw [h_surj]
+    exact hy_mem
+  rcases hy_in_image with ⟨x_val, hx_mem, hx_eq⟩
+  use ⟨x_val, hx_mem⟩
+  ext
+  exact hx_eq
+
+theorem f_is_surjective
+    {M : Type*} [Monoid M] [Fintype M]
+    (G : Set M)
+    (h_equalsm :
+      ∀ g ∈ G,
+        (fun x ↦ x * g) '' (Submonoid.closure G : Set M)
+          = (Submonoid.closure G : Set M))
+    (g : M) (hg : g ∈ G) :
+    Function.Surjective
+      (fun (x : Submonoid.closure G) ↦
+        (⟨(x : M) * g, Submonoid.mul_mem (Submonoid.closure G) x.2 (Submonoid.subset_closure hg)⟩ : Submonoid.closure G)) := by
+  intro y
+  have hy_mem : (y : M) ∈ (Submonoid.closure G : Set M) := y.2
+  have h_surj := h_equalsm g hg
+  have hy_in_image : (y : M) ∈ (fun x ↦ x * g) '' (Submonoid.closure G : Set M) := by
+    rw [h_surj]
+    exact hy_mem
+  rcases hy_in_image with ⟨x_val, hx_mem, hx_eq⟩
+  use ⟨x_val, hx_mem⟩
+  ext
+  exact hx_eq
+
+theorem f_is_injective
+    {M : Type*} [Monoid M] [Fintype M]
+    (G : Set M)
+    (h_equalsm :
+      ∀ g ∈ G,
+        (fun x ↦ x * g) '' (Submonoid.closure G : Set M)
+          = (Submonoid.closure G : Set M))
+    (g : M) (hg : g ∈ G) :
+    Function.Injective
+      (fun (x : Submonoid.closure G) ↦
+        (⟨(x : M) * g, Submonoid.mul_mem (Submonoid.closure G) x.2 (Submonoid.subset_closure hg)⟩ : Submonoid.closure G)) := by
+  exact (f_is_bijective G h_equalsm g hg).injective
+
+
+theorem revMachine_is_primeSequential {M} [Monoid M] [DecidableEq M] [Fintype M] (G : Set M)
+  (h_equalsm : ∀ g ∈ G, (fun x ↦ x * g) '' ↑(Submonoid.closure G) = ↑(Submonoid.closure G)):
+  CompositionOfPrimes (revMachine (M:=M) G.toFinset).eval := by
+  rw [CompositionOfPrimes]
+  use ListOfListFunctions.cons (revMachine (M := M) G.toFinset).eval (ListOfListFunctions.nil M)
+  have h_set_eq : ↑G.toFinset = (G : Set M) := Set.ext (by simp)
+  constructor
+  · rw [isListOfPrimeFunction]
+    simp only [ListOfListFunctions.all]
+    constructor
+    · rw [PrimeSequentialFunction]
+      use ((Submonoid.closure (G.toFinset : Set M)))
+      use (revMachine (M := M) G.toFinset)
+      constructor
+      · rw [PrimeMachine]
+        left
+        rw [ReversibleMealyMachine]
+        intro a
+        by_cases h : (a = 1) ∨ (a ∈ G)
+        · rw [revMachine]
+          constructor
+          · intro x y gxisgy
+            simp [nextState,h,revMachine] at gxisgy
+            rcases h with a1|aing
+            · simp [a1,mul_one,mul_one] at gxisgy
+              exact gxisgy
+            · apply f_is_injective
+              simp [h_set_eq]
+              intro x xinG
+              exact h_equalsm x xinG
+              simp
+              exact gxisgy
+              rw [h_set_eq]
+              exact aing
+          · intro x
+            rcases h with h1 | hinG
+            · use x
+              simp [h1,nextState]
+            · rw [← h_set_eq] at h_equalsm
+              rw [← h_set_eq] at hinG
+              obtain h' := (f_is_surjective G.toFinset h_equalsm a hinG)
+              obtain ⟨ b , hb ⟩ := h' x
+              use b
+              simp [nextState]
+              rw [dif_pos]
+              simp [hb]
+              right
+              exact hinG
+        · constructor
+          · intro x y gxisgy
+            simp [nextState,h,revMachine] at gxisgy
+            exact gxisgy
+          · intro a
+            use a
+            simp [nextState,h,revMachine]
+      · trivial
+    · trivial
+  · simp only [ListOfListFunctions.eval]
+    trivial
+
+
+
 
 lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M] ( G : Set M ) (m n : Nat)
   (hn : Fintype.card ↥(Submonoid.closure G) ≤ n) (hm : Fintype.card ↥G ≤ m) :
@@ -201,6 +322,10 @@ lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M
             intro x xintail
             simp [xinGor1,xintail]
         apply hypothesis
-      · sorry
+      · apply revMachine_is_primeSequential
+        exact h_equalsm
+
+
+
 
 --close MealyMachine
