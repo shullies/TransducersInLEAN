@@ -13,7 +13,8 @@ universe u
 
 inductive ListOfListFunctions : Type u → Type u → Type (u + 1) where
   | nil (α : Type u) : ListOfListFunctions α α
-  | cons {α β γ : Type u} (f : List α → List β) (rest : ListOfListFunctions β γ) : ListOfListFunctions α γ
+  | cons {α β γ : Type u} (f : List α → List β) (rest : ListOfListFunctions β γ) :
+  ListOfListFunctions α γ
 
 namespace ListOfListFunctions
 
@@ -25,6 +26,38 @@ def all {α β : Type u}
     (p : (X : Type u) → (Y : Type u) → (List X → List Y) → Prop) : ListOfListFunctions α β → Prop
   | .nil _ => True
   | @cons α' β' _ f rest => (p α' β' f) ∧ all p rest
+
+def concat {α β γ}
+    (l1 : ListOfListFunctions α β)
+    (l2 : ListOfListFunctions β γ) :
+    ListOfListFunctions α γ :=
+  match l1 with
+  | ListOfListFunctions.nil _ =>
+      l2
+  | ListOfListFunctions.cons f rest =>
+      ListOfListFunctions.cons f (concat rest l2)
+theorem concat_eval {α β γ}
+    (l1 : ListOfListFunctions α β)
+    (l2 : ListOfListFunctions β γ) :
+    l2.eval ∘ l1.eval = (concat l1 l2).eval := by
+  induction l1 with
+  | nil =>
+      rfl
+  | @cons α β δ f rest ih =>
+    simp only [ListOfListFunctions.eval, concat]
+    change (l2.eval ∘ rest.eval) ∘ f = (concat rest l2).eval ∘ f
+    rw [ih l2]
+
+theorem concat_all {α β γ}
+    (p : (X : Type u) → (Y : Type u) → (List X → List Y) → Prop)
+    (l1 : ListOfListFunctions α β)
+    (l2 : ListOfListFunctions β γ) :
+    all p (concat l1 l2) ↔ all p l1 ∧ all p l2 := by
+  induction l1 with
+  | nil =>
+    simp [concat, all]
+  | @cons α β δ f rest ih =>
+    simp only [concat, all, ih, and_assoc]
 
 end ListOfListFunctions
 
@@ -52,6 +85,62 @@ def CorrectPrefSubG {M} [Monoid M]
 
 def CompositionOfPrimes {α β} (f : List α →  List β) : Prop :=
   ∃ (l: ListOfListFunctions α β), isListOfPrimeFunction l ∧ l.eval = f
+
+open Sum
+
+def flipfloplift {α σ β : Type}
+    (MM : MealyMachine α σ β) : MealyMachine (α ⊕ Unit) σ (β ⊕ Unit) :=
+  have : Fintype α := MM.alphaFin
+  have : Fintype β := MM.betaFin
+  have : Fintype σ := MM.statesFin
+  let step_fn (state : σ) (input : α ⊕ Unit) : (β ⊕ Unit) × σ :=
+    match input with
+    | inl a =>
+      let (out, next_state) := MM.step state a
+      (inl out, next_state)
+    | inr () =>
+      (inr (), MM.start)
+  {
+    step := step_fn ,
+    start := MM.start
+  }
+
+theorem flipfloplift_is_primeSequential {α β σ} ( MM : MealyMachine α σ β) ( h : FlipFlopMachine MM ) :
+  FlipFlopMachine (flipfloplift MM) := by
+  rw [FlipFlopMachine]
+  intro a
+  match a with
+  |inr () =>
+  right
+  use MM.start
+  trivial
+  |inl a =>
+  rw [FlipFlopMachine] at h
+  rcases (h a) with identity | sing_output
+  · left
+    ext s
+    unfold nextState
+    simp
+    have h := congr_fun identity s
+    unfold nextState at h
+    simp at h
+    exact h
+  · right
+    obtain ⟨ s , hs ⟩  := sing_output
+    use s
+    unfold nextState
+    simp
+    apply hs
+
+
+theorem map_prime_composition {α β} (f : List α → List β ) (h : CompositionOfPrimes f) :
+CompositionOfPrimes (mapC f) := by
+  unfold CompositionOfPrimes at h
+  sorry
+
+theorem map_lift {α β} (l : ListOfListFunctions α β) (h : isListOfPrimeFunction l) :
+  ∃ (l2 : ListOfListFunctions (α ⊕ Unit) (β ⊕ Unit)) , isListOfPrimeFunction l2 ∧ l2.eval = mapC l.eval :=
+  sorry
 
 instance fintypeGen (M : Type) (G : Set M) [Monoid M] [Fintype M] : Fintype (Submonoid.closure G) := sorry
 
@@ -212,9 +301,6 @@ theorem revMachine_is_primeSequential {M} [Monoid M] [DecidableEq M] [Fintype M]
   · simp only [ListOfListFunctions.eval]
     trivial
 
-
-
-
 lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M] ( G : Set M ) (m n : Nat)
   (hn : Fintype.card ↥(Submonoid.closure G) ≤ n) (hm : Fintype.card ↥G ≤ m) :
   ∃ (f : List M → List M), CorrectPrefSubG G f ∧ CompositionOfPrimes f := by
@@ -324,8 +410,6 @@ lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M
         apply hypothesis
       · apply revMachine_is_primeSequential
         exact h_equalsm
-
-
 
 
 --close MealyMachine

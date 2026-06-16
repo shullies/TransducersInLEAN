@@ -207,7 +207,71 @@ theorem composition_of_sequential_is_sequential {α β γ} (f : List α → List
 
 end MealyMachine
 
+open Sum
 
-def mapC (f : List α → List β) : (List (α ⊕ Unit) → List (β ⊕ Unit)) := sorry
+def mapCaux {α β : Type} (currList : List α) (f : List α → List β) (input : List (α ⊕ Unit)) : List (β ⊕ Unit) :=
+  match input with
+  | [] => (f currList).map inl
+  | h :: t =>
+    match h with
+    | inr () => (f currList).map inl ++ [inr ()] ++ mapCaux [] f t
+    | inl a  => mapCaux (currList ++ [a]) f t
 
-def subseq (f : List α → List β) : (List (α ⊕ Unit) → List (β ⊕ Unit)) := sorry
+def mapC {α β : Type} (f : List α → List β) : (List (α ⊕ Unit)) → (List (β ⊕ Unit)) :=
+  mapCaux [] f
+
+-- def subseq (f : List α → List β) : (List (α ⊕ Unit) → List (β ⊕ Unit)) := sorry
+
+-- #check funext
+
+lemma mapCaux_opens {α β : Type} (f : List α → List β) (held : List α) (l : List α)
+(t : List (α ⊕ Unit)) :
+  mapCaux held f (l.map inl ++ [inr ()] ++ t) = (f (held ++ l)).map inl ++ [inr ()] ++ mapC f t := by
+  induction l generalizing held with
+  | nil =>
+    dsimp [mapCaux, mapC]
+    simp
+  | cons head tail ih =>
+    change mapCaux (held ++ [head]) f (tail.map inl ++ [inr ()] ++ t) = _
+    rw [ih (held ++ [head])]
+    simp
+
+lemma mapCaux_pure_inl {α β : Type} (currList : List α) (f : List α → List β) (L : List α) :
+    mapCaux currList f (L.map inl) = (f (currList ++ L)).map inl := by
+  induction L generalizing currList with
+  | nil => simp [mapCaux]
+  | cons h t ih =>
+    simp [mapCaux]
+    rw [ih (currList ++ [h])]
+    simp
+
+lemma mapC_no_restart {α β : Type} (f : List α → List β) (l : List α) :
+    mapC f (l.map inl) = (f l).map inl := by
+  dsimp [mapC]
+  rw [mapCaux_pure_inl [] f l]
+  simp
+
+lemma distribution_of_mapCaux (f : List β → List γ) (g : List α → List β) (held : List α ) :
+  mapCaux held (f ∘ g) = (mapC f) ∘ (mapCaux held g) := by
+  apply funext
+  intro input
+  induction input generalizing held with
+  | nil =>
+  simp only [mapCaux,Function.comp_apply]
+  rw [← mapC_no_restart]
+  | cons h t ih =>
+  match h with
+  |inr () =>
+  simp only [mapC,mapCaux,Function.comp_apply]
+  rw [mapCaux_opens]
+  simp
+  apply ih
+  |inl a =>
+  simp only [mapCaux,Function.comp_apply]
+  apply ih
+
+theorem distribution_of_map (f : List β → List γ) (g : List α → List β) :
+  mapC (f ∘ g) = mapC (f) ∘ mapC (g) := by
+  nth_rw 1 [mapC]
+  nth_rw 2 [mapC]
+  apply distribution_of_mapCaux
