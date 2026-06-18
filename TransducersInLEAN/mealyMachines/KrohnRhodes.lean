@@ -411,5 +411,4 @@ lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M
       · apply revMachine_is_primeSequential
         exact h_equalsm
 
-
 --close MealyMachine

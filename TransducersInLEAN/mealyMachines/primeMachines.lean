@@ -104,6 +104,4 @@ theorem ForwardMachine_is_prime_if_MM_is_prime {α β σ γ}
       obtain ⟨ state, proof ⟩ := h
       use state
       apply proof
-
-
 end
