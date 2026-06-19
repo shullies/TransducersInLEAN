@@ -26,7 +26,7 @@ def PrimeMachine {α σ β}
   ReversibleMealyMachine MM ∨ FlipFlopMachine MM
 
 def PrimeSequentialFunction {α β} (f : List α → List β) : Prop :=
-  ∃ (states : Type), ∃ (mealymachine : MealyMachine α states β) , PrimeMachine mealymachine ∧ mealymachine.eval = f
+  ∃ (states : Type*), ∃ (mealymachine : MealyMachine α states β) , PrimeMachine mealymachine ∧ mealymachine.eval = f
 
 def ForwardMachine {α β σ} (γ : Type)
   (MM : MealyMachine α σ β)
@@ -48,7 +48,6 @@ def ForwardMachine {α β σ} (γ : Type)
     betaFin := inferInstance,
     statesFin := MM.statesFin
   }
-
 
 theorem ForwardMachine_evalFrom
   {α β σ} (γ : Type)
@@ -105,3 +104,35 @@ theorem ForwardMachine_is_prime_if_MM_is_prime {α β σ γ}
       use state
       apply proof
 end
+
+theorem single_State_MM_is_prime {α β} (MM : MealyMachine α Unit β) :
+  (PrimeMachine MM) := by
+  unfold PrimeMachine
+  right
+  unfold FlipFlopMachine
+  intro a
+  right
+  use ()
+
+def dupMachine α [Fintype α] :
+  MealyMachine α Unit (α × α) :=
+  have stepfn (_state : Unit) (letter : α ) := ((letter,letter) , ())
+  {
+    start := ()
+    step := stepfn
+  }
+
+theorem dupMachine_is_prime {α} [Fintype α] :
+  (PrimeMachine (dupMachine α)) := by
+  apply single_State_MM_is_prime
+
+theorem dupMachine_eval {α} (word : List α) [Fintype α] :
+  (dupMachine α).eval word = List.zip word word := by
+  rw [dupMachine]
+  induction word with
+  | nil => trivial
+  | cons h t ih =>
+  dsimp
+  simp [MealyMachine.eval,MealyMachine.evalFrom]
+  rw [← MealyMachine.eval]
+  exact ih
