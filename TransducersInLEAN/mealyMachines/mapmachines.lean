@@ -1,5 +1,7 @@
 import TransducersInLEAN.mealyMachines.reversibleMapMachines
 
+open scoped Classical
+
 def flipfloplift {α σ β}
     (MM : MealyMachine α σ β) : MealyMachine (α ⊕ Unit) σ (β ⊕ Unit) :=
   have : Fintype α := MM.alphaFin
@@ -17,7 +19,7 @@ def flipfloplift {α σ β}
     start := MM.start
   }
 
-theorem flipfloplift_is_primeSequential {α β σ} (MM : MealyMachine α σ β) (h : FlipFlopMachine MM) :
+theorem flipfloplift_is_prime {α β σ} (MM : MealyMachine α σ β) (h : FlipFlopMachine MM) :
   FlipFlopMachine (flipfloplift MM) := by
   rw [FlipFlopMachine]
   intro a
@@ -157,25 +159,97 @@ theorem s0_s5_to_s6MM_is_prime {α σ β : Type*} [DecidableEq σ] (MM : MealyMa
   (PrimeMachine (s0_s5_to_s6MM MM)) := by
   apply single_State_MM_is_prime
 
+
 theorem list_of_primes_for_rev {α σ β} [DecidableEq σ] (MM : MealyMachine α σ β) (h : ReversibleMealyMachine MM) :
   CompositionOfPrimes (mapC MM.eval) := by
+  unfold CompositionOfPrimes
   sorry
 
-theorem list_of_primes_for_flipflop {α σ β} [DecidableEq σ] (MM : MealyMachine α σ β) (h : FlipFlopMachine MM) :
+theorem list_of_primes_for_flipflop {α σ β} (MM : MealyMachine α σ β) (h : FlipFlopMachine MM) :
   CompositionOfPrimes (mapC MM.eval) := by
   unfold CompositionOfPrimes
   use (ListOfListFunctions.cons (flipfloplift MM).eval (ListOfListFunctions.nil (β ⊕ Unit)))
   constructor
   rw [isListOfPrimeFunction , ListOfListFunctions.all]
+  · constructor
+    · apply primeSeqeuntial_of_primeMM
+      right
+      apply flipfloplift_is_prime
+      exact h
+    · simp [ListOfListFunctions.all]
+  · simp [ListOfListFunctions.eval]
+    symm
+    apply flipfloplift_ismapC
+    exact h
+
+theorem map_lift {α β} (l : ListOfListFunctions α β) (h : isListOfPrimeFunction l) :
+  ∃ (l2 : ListOfListFunctions (α ⊕ Unit) (β ⊕ Unit)) , isListOfPrimeFunction l2 ∧ l2.eval = mapC l.eval := by
+  induction l with
+  | nil a =>
+  use ListOfListFunctions.nil (a ⊕ Unit)
   constructor
-  rw [PrimeSequentialFunction]
-  sorry
+  · trivial
+  · simp [mapC , ListOfListFunctions.eval]
+    funext x
+    have h (stored : List a) (t : List (a ⊕ Unit)) : mapCaux stored id t = id (stored.map Sum.inl)++t := by
+      induction t generalizing stored with
+      | nil =>  simp [mapCaux]
+      | cons head tail ih =>
+        match head with
+        | .inl elem =>
+          simp [ih,mapCaux]
+        | .inr elem =>
+          simp [ih,mapCaux]
+    simp [h]
+  | cons head t ih =>
+  have head_is_prime : PrimeSequentialFunction head := by
+    simp [isListOfPrimeFunction,ListOfListFunctions.all] at h
+    exact h.left
+  unfold PrimeSequentialFunction at head_is_prime
+  obtain ⟨ states , mealymachine , ⟨prime_MM , eval_is_head⟩⟩ := head_is_prime
+  rcases prime_MM with rev | flipflop
+  · have states_fin := mealymachine.statesFin
+    obtain ⟨head_list , ⟨head_list_is_prime_list , head_list_eval⟩⟩ := list_of_primes_for_rev mealymachine rev
+    have tail_is_prime : isListOfPrimeFunction t := by
+      simp [isListOfPrimeFunction,ListOfListFunctions.all] at h
+      rw [isListOfPrimeFunction]
+      exact h.right
+    obtain ⟨tail_list , ⟨tail_list_is_prime_list , tail_list_eval⟩⟩ := ih tail_is_prime
+    use head_list.concat tail_list
+    constructor
+    · rw [isListOfPrimeFunction,ListOfListFunctions.concat_all]
+      constructor
+      · rw [← isListOfPrimeFunction]
+        exact head_list_is_prime_list
+      · rw [← isListOfPrimeFunction]
+        exact tail_list_is_prime_list
+    · rw [ListOfListFunctions.eval,← ListOfListFunctions.concat_eval]
+      rw [tail_list_eval,head_list_eval,eval_is_head]
+      rw [distribution_of_map]
+  · obtain ⟨head_list , ⟨head_list_is_prime_list , head_list_eval⟩⟩ := list_of_primes_for_flipflop mealymachine flipflop
+    have tail_is_prime : isListOfPrimeFunction t := by
+      simp [isListOfPrimeFunction,ListOfListFunctions.all] at h
+      rw [isListOfPrimeFunction]
+      exact h.right
+    obtain ⟨tail_list , ⟨tail_list_is_prime_list , tail_list_eval⟩⟩ := ih tail_is_prime
+    use head_list.concat tail_list
+    constructor
+    · rw [isListOfPrimeFunction,ListOfListFunctions.concat_all]
+      constructor
+      · rw [← isListOfPrimeFunction]
+        exact head_list_is_prime_list
+      · rw [← isListOfPrimeFunction]
+        exact tail_list_is_prime_list
+    · rw [ListOfListFunctions.eval,← ListOfListFunctions.concat_eval]
+      rw [tail_list_eval,head_list_eval,eval_is_head]
+      rw [distribution_of_map]
 
 theorem map_prime_composition {α β} (f : List α → List β) (h : CompositionOfPrimes f) :
 CompositionOfPrimes (mapC f) := by
   unfold CompositionOfPrimes at h
-  sorry
-
-theorem map_lift {α β} (l : ListOfListFunctions α β) (h : isListOfPrimeFunction l) :
-  ∃ (l2 : ListOfListFunctions (α ⊕ Unit) (β ⊕ Unit)) , isListOfPrimeFunction l2 ∧ l2.eval = mapC l.eval := by
-  sorry
+  obtain ⟨ l , l_prime , l_eval ⟩ := h
+  obtain ⟨ l2 , l2_prime , l2_eval ⟩ := map_lift l l_prime
+  use l2
+  constructor
+  · exact l2_prime
+  · rw [l2_eval,l_eval]
