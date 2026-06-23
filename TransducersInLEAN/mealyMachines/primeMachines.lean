@@ -74,6 +74,19 @@ theorem ForwardMachine_evalFrom
     · rw [ih₁]
     · rw [ih₂]
 
+theorem ForwardMachine_eval
+  {α β σ} (γ : Type)
+  (MM : MealyMachine α σ β)
+  [Fintype γ]
+  (word : List (γ × α)) :
+  let (g_in, _a_in) := word.unzip
+  let (g_out, b_out) :=
+    List.unzip ((ForwardMachine γ MM).eval word)
+  g_out = g_in ∧ b_out = MM.eval word.unzip.2 := by
+  classical
+  simpa [MealyMachine.eval]
+    using ForwardMachine_evalFrom γ MM word MM.start
+
 theorem ForwardMachine_is_prime_if_MM_is_prime {α β σ γ}
 (MM : MealyMachine α σ β) [Fintype γ] (hMM : PrimeMachine MM) :
   PrimeMachine (ForwardMachine γ MM) := by
@@ -252,3 +265,27 @@ theorem copy_machine_prime {α σ β} (MM : MealyMachine α σ β)
     exact copy_machine_reversible MM hR
   · right
     exact copy_machine_flipflop MM hF
+
+theorem copy_machine_evalFrom {α σ β : Type}
+    (MM : MealyMachine α σ β)
+    (s : σ)
+    (word : List α) :
+    (copy_machine MM).evalFrom s word =
+      List.zip word (MM.evalFrom s word) := by
+  induction word generalizing s with
+  | nil =>
+      rfl
+  | cons h t ih =>
+      simp [MealyMachine.evalFrom, copy_machine]
+      cases hstep : MM.step s h with
+      | mk out s' =>
+          simp [hstep]
+          simpa using ih s'
+
+theorem copy_machine_eval {α σ β : Type}
+    (MM : MealyMachine α σ β)
+    (word : List α) :
+    (copy_machine MM).eval word =
+      List.zip word (MM.eval word) := by
+  simpa [MealyMachine.eval]
+    using copy_machine_evalFrom MM MM.start word

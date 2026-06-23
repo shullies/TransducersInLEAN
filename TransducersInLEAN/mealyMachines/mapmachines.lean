@@ -159,11 +159,145 @@ theorem s0_s5_to_s6MM_is_prime {α σ β : Type*} [DecidableEq σ] (MM : MealyMa
   (PrimeMachine (s0_s5_to_s6MM MM)) := by
   apply single_State_MM_is_prime
 
+def rearrangement_machine (α β γ) [Fintype α] [Fintype β] [Fintype γ]: MealyMachine ((α × β) × γ) Unit (α × (β × γ)) :=
+ have stepfn (_state : Unit) (input : ((α × β) × γ)) :=
+ ((input.1.1,(input.1.2,input.2)),())
+ {
+    start := ()
+    step := stepfn
+  }
 
-theorem list_of_primes_for_rev {α σ β} [DecidableEq σ] (MM : MealyMachine α σ β) (h : ReversibleMealyMachine MM) :
+theorem rearrangement_machine_eval
+    (α β γ : Type)
+    [Fintype α] [Fintype β] [Fintype γ]
+    (word : List ((α × β) × γ)) :
+    (rearrangement_machine α β γ).eval word =
+      word.map (fun x => (x.1.1, (x.1.2, x.2))) := by
+  induction word with
+  | nil =>
+      rfl
+  | cons h t ih =>
+      dsimp [rearrangement_machine]
+      simp [MealyMachine.eval, MealyMachine.evalFrom]
+      rw [← MealyMachine.eval]
+      exact ih
+
+theorem rearrangement_machine_eval_zip
+    (α β γ : Type)
+    [Fintype α] [Fintype β] [Fintype γ]
+    (a : List α) (b : List β) (c : List γ) :
+    (rearrangement_machine α β γ).eval (List.zip (List.zip a b) c) =
+      List.zip a (List.zip b c) := by
+  rw [rearrangement_machine_eval]
+  apply List.ext_getElem
+  · simp;
+  · intro i h1 h2
+    simp
+
+universe u v w
+
+noncomputable def list_of_primes_rev {α σ β} [DecidableEq σ] (MM : MealyMachine α σ β) (h : ReversibleMealyMachine MM) :
+  ListOfListFunctions (α ⊕ Unit) (β ⊕ Unit) :=
+  have _alphaFin := MM.alphaFin
+  have m1 := copy_machine (s0_to_s1MM MM h)
+  have m2 := ForwardMachine (α ⊕ Unit) (s1_to_s2MM MM h)
+  have _equivFin := m2.statesFin
+  have m3 := copy_machine (s0_s2_to_s3MM MM h)
+  have m4 := rearrangement_machine (α ⊕ Unit) (Equiv.Perm σ) (Equiv.Perm σ)
+  have m5 := ForwardMachine (α ⊕ Unit) (s2_s3_to_s4MM MM h)
+  have m6 := ForwardMachine (α ⊕ Unit) (s4_to_s5MM MM)
+  have m7 := s0_s5_to_s6MM MM
+  ListOfListFunctions.cons m1.eval
+  (ListOfListFunctions.cons m2.eval
+  (ListOfListFunctions.cons m3.eval
+  (ListOfListFunctions.cons m4.eval
+  (ListOfListFunctions.cons m5.eval
+  (ListOfListFunctions.cons m6.eval
+  (ListOfListFunctions.cons m7.eval
+  (ListOfListFunctions.nil (β ⊕ Unit)
+  )))))))
+
+lemma ForwardMachine_evalFrom_zip {α β σ γ} [Fintype γ]
+    (MM : MealyMachine α σ β) (a : List γ) (b : List α) (s : σ) :
+    (ForwardMachine γ MM).evalFrom s (List.zip a b) = List.zip a (MM.evalFrom s b) := by
+    induction a generalizing s b
+    · simp[MealyMachine.evalFrom]
+    next ih =>
+      cases b
+      · simp [MealyMachine.evalFrom]
+      · simp [MealyMachine.evalFrom]
+        constructor
+        · simp [ForwardMachine]
+        · simp [ih]
+          congr 1
+
+lemma ForwardMachine_eval_zip {α β σ γ} [Fintype γ]
+    (MM : MealyMachine α σ β) (a : List γ) (b : List α) :
+    (ForwardMachine γ MM).eval (List.zip a b) = List.zip a (MM.eval b) := by
+  simp [MealyMachine.eval]
+  apply ForwardMachine_evalFrom_zip
+
+-- A very hacky fix here by just putting all of these belonging to Type , I don't know how to fix it
+theorem list_of_primes_for_rev {α σ β : Type} [DecidableEq σ] (MM : MealyMachine α σ β) (h : ReversibleMealyMachine MM) :
   CompositionOfPrimes (mapC MM.eval) := by
+  letI  alphaFin := MM.alphaFin
   unfold CompositionOfPrimes
-  sorry
+  use (list_of_primes_rev MM h : ListOfListFunctions (α ⊕ Unit) (β ⊕ Unit))
+  constructor
+  · unfold isListOfPrimeFunction
+    simp only [ListOfListFunctions.all,list_of_primes_rev,
+    copy_machine_prime ,
+    ForwardMachine_is_prime_if_MM_is_prime ,
+    primeSeqeuntial_of_primeMM ,
+    s1_to_s2MM_is_prime ,
+    s0_s2_to_s3MM_is_prime ,
+    s4_to_s5MM_is_prime ,
+    rearrangement_machine,
+    single_State_MM_is_prime
+    ]
+    trivial
+  · funext l
+    rw [← s6_eq_mapCMM (h := h)]
+    rw [← s0_s5_to_s6MM_eq]
+    simp [list_of_primes_rev,ListOfListFunctions.eval]
+    apply congrArg
+    have  h3: WordOf l (s0_times_s5 MM h) = List.zip (WordOf l (s0 MM )) (WordOf l (s5 MM h)):= by
+      unfold WordOf s0_times_s5
+      apply List.ext_getElem
+      · simp
+      · intro i h1 h2
+        simp only [List.getElem_zip, List.getElem_ofFn]
+
+    have  h1: WordOf l (s0_times_s2 MM h) = List.zip (WordOf l (s0 MM )) (WordOf l (s2 MM h)):= by
+      unfold WordOf s0_times_s2
+      apply List.ext_getElem
+      · simp
+      · intro i h1 h2
+        simp only [List.getElem_zip, List.getElem_ofFn]
+
+    have  h2: WordOf l (s2_times_s3 MM h) = List.zip (WordOf l (s2 MM h)) (WordOf l (s3 MM h)):= by
+      unfold WordOf s2_times_s3
+      apply List.ext_getElem
+      · simp
+      · intro i h1 h2
+        simp only [List.getElem_zip, List.getElem_ofFn]
+
+    nth_rw 1 [← s0_eq_word (word := l) (MM := MM)]
+    nth_rw 2 [copy_machine_eval]
+    rw [s0_to_s1MM_eq]
+    rw [ForwardMachine_eval_zip]
+    rw [s1_to_s2MM_eq]
+    rw [copy_machine_eval]
+    nth_rw 2 [← h1]
+    rw [s0_s2_to_s3MM_eq]
+    rw [rearrangement_machine_eval_zip]
+    rw [← h2]
+    rw [ForwardMachine_eval_zip]
+    rw [s2_s3_to_s4MM_eq]
+    rw [ForwardMachine_eval_zip]
+    rw [s4_to_s5MM_eq]
+    rw [h3]
+
 
 theorem list_of_primes_for_flipflop {α σ β} (MM : MealyMachine α σ β) (h : FlipFlopMachine MM) :
   CompositionOfPrimes (mapC MM.eval) := by
@@ -182,7 +316,7 @@ theorem list_of_primes_for_flipflop {α σ β} (MM : MealyMachine α σ β) (h :
     apply flipfloplift_ismapC
     exact h
 
-theorem map_lift {α β} (l : ListOfListFunctions α β) (h : isListOfPrimeFunction l) :
+theorem map_lift {α β : Type} (l : ListOfListFunctions α β) (h : isListOfPrimeFunction l) :
   ∃ (l2 : ListOfListFunctions (α ⊕ Unit) (β ⊕ Unit)) , isListOfPrimeFunction l2 ∧ l2.eval = mapC l.eval := by
   induction l with
   | nil a =>
@@ -244,7 +378,7 @@ theorem map_lift {α β} (l : ListOfListFunctions α β) (h : isListOfPrimeFunct
       rw [tail_list_eval,head_list_eval,eval_is_head]
       rw [distribution_of_map]
 
-theorem map_prime_composition {α β} (f : List α → List β) (h : CompositionOfPrimes f) :
+theorem map_prime_composition {α β : Type} (f : List α → List β) (h : CompositionOfPrimes f) :
 CompositionOfPrimes (mapC f) := by
   unfold CompositionOfPrimes at h
   obtain ⟨ l , l_prime , l_eval ⟩ := h

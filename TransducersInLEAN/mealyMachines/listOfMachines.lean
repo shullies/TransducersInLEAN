@@ -67,4 +67,3 @@ def isListOfPrimeFunction {α β : Type u} (l : ListOfListFunctions α β) : Pro
 
 def CompositionOfPrimes {α β} (f : List α → List β) : Prop :=
   ∃ (l: ListOfListFunctions α β), isListOfPrimeFunction l ∧ l.eval = f
-
