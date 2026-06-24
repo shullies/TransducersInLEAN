@@ -1,11 +1,46 @@
 import TransducersInLEAN.mealyMachines.listOfMachines
 import Mathlib.Algebra.Group.Defs
 import Mathlib.Algebra.Group.Submonoid.Basic
+import Mathlib.Algebra.Group.WithOne.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Set.Basic
 import Mathlib.Order.RelClasses
+import Mathlib.Data.Set.Card
 
+def TransType (σ β : Type _) : Type _ := σ → σ × β
 
+instance (σ β : Type _) : Semigroup (TransType σ β) where
+  mul f g := fun s =>
+    let (s', _) := g s
+    let (s'', b2) := f s'
+    (s'', b2)
+
+  mul_assoc f g h := by
+    funext s
+    dsimp [Mul.mul]
+    rcases h s with ⟨s1, _⟩
+    rcases g s1 with ⟨s2, _⟩
+    rcases f s2 with ⟨s3, b3⟩
+    rfl
+
+abbrev MonoidTransType (σ β : Type _) : Type _ := WithOne (TransType σ β)
+
+section Closure
+variable {α : Type u} {σ : Type v} {β : Type w}
+variable (M : MealyMachine α σ β)
+
+def mealyGenerators : Set (MonoidTransType σ β) :=
+  Set.range (fun (a : α) => WithOne.coe (fun (s : σ) =>
+    let (b, s') := M.step s a
+    (s', b)
+  ))
+
+def MealySubmonoid : Submonoid (MonoidTransType σ β) :=
+  Submonoid.closure (mealyGenerators M)
+
+def TransitionClosureSet : Type _ := MealySubmonoid M
+
+end Closure
 
 open MealyMachine
 
@@ -186,6 +221,28 @@ theorem revMachine_is_primeSequential {M} [Monoid M] [DecidableEq M] [Fintype M]
     · trivial
   · simp only [ListOfListFunctions.eval]
     trivial
+
+-- theorem custom_induction
+-- {M} {P : Set M → Prop} [Monoid M] [DecidableEq M] [Fintype M]
+-- (step : ∀ (G : Set M), (∀ (G' : Set M), ((Submonoid.closure G' : Set M).ncard < (Submonoid.closure G : Set M).ncard) ∨ (((Submonoid.closure G' : Set M).ncard = (Submonoid.closure G : Set M).ncard) ∧ G'.ncard < G.ncard) → P G') → P G )
+-- (basecase : P ∅) :
+-- ∀ (G : Set M) , P G := by sorry
+
+theorem induction_theorem
+{M} {P : Set M → Prop} [Monoid M] [DecidableEq M] [Fintype M]
+(step : ∀ (G : Set M), (∀ (G' : Set M), (((Submonoid.closure G' : Set M).ncard, G'.ncard) < ((Submonoid.closure G : Set M).ncard , G.ncard)) → P G') → P G )
+:
+∀ (G : Set M) , P G := by
+  have wf : WellFounded (fun G' G : Set M =>
+      ((((Submonoid.closure G' : Set M).ncard, G'.ncard) : ℕ × ℕ)
+        < ((Submonoid.closure G : Set M).ncard, G.ncard))) :=
+    @InvImage.wf (Set M) (ℕ × ℕ) (· < ·)
+      (fun G => (((Submonoid.closure G : Set M).ncard, G.ncard) : ℕ × ℕ))
+      IsWellFounded.wf
+  intro G
+  induction G using wf.induction with
+  | _ G ih => exact step G ih
+
 
 lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M] ( G : Set M ) (m n : Nat)
   (hn : Fintype.card ↥(Submonoid.closure G) ≤ n) (hm : Fintype.card ↥G ≤ m) :
