@@ -1,4 +1,5 @@
 import TransducersInLEAN.mealyMachines.mealyMachines
+import Mathlib.Tactic
 
 section
 open MealyMachine
@@ -289,3 +290,26 @@ theorem copy_machine_eval {α σ β : Type}
       List.zip word (MM.eval word) := by
   simpa [MealyMachine.eval]
     using copy_machine_evalFrom MM MM.start word
+
+def mapMachine {α β : Type u} [Fintype α] [Fintype β] (g : α → β) :
+    MealyMachine α Unit β where
+  step := fun _ a => (g a, ())
+  start := ()
+
+theorem mapMachine_evalFrom {α β : Type u} [Fintype α] [Fintype β] (g : α → β)
+    (l : List α) : (mapMachine g).evalFrom () l = List.map g l := by
+  induction' l with a l ih;
+  · rfl;
+  · convert congr_arg ( fun x => g a :: x ) ih using 1
+
+theorem mapMachine_eval {α β : Type u} [Fintype α] [Fintype β] (g : α → β) :
+    (mapMachine g).eval = List.map g := by
+  funext l;
+  convert mapMachine_evalFrom g l using 1
+
+theorem primeSeq_map {α β : Type u} [Fintype α] [Fintype β] (g : α → β) :
+    PrimeSequentialFunction (List.map g) := by
+  use Unit;
+  use mapMachine g;
+  refine' ⟨ Or.inr _, mapMachine_eval g ⟩;
+  intro a; exact Or.inr ⟨ (), funext fun _ => rfl ⟩ ;

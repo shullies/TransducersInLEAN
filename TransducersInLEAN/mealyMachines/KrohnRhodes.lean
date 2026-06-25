@@ -6,47 +6,30 @@ import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Set.Basic
 import Mathlib.Order.RelClasses
 import Mathlib.Data.Set.Card
+import Mathlib.Algebra.Group.Subsemigroup.Basic
+import Mathlib.Data.Fintype.Basic
 
-def TransType (σ β : Type _) : Type _ := σ → σ × β
+-- lemma prefSemiAux_eq_evalFrom (M : MealyMachine α σ β) (inputs : List α) (acc : MealySubsemigroup M) (q : σ) :
+--   (prefSemiAux acc (inputs.map (inputToSemigroupElem M))).map (fun e => (e.val q).1) =
+--   MealyMachine.evalFrom (acc.val q).2 M inputs := by
+--   induction inputs generalizing acc q with
+--   | nil => rfl
+--   | cons x xs ih =>
+--     dsimp [prefSemiAux, List.map, MealyMachine.evalFrom, inputToSemigroupElem, inputToTrans]
+--     rw [ih (acc * inputToSemigroupElem M x)]
+--     rfl
 
-instance (σ β : Type _) : Semigroup (TransType σ β) where
-  mul f g := fun s =>
-    let (s', _) := g s
-    let (s'', b2) := f s'
-    (s'', b2)
-
-  mul_assoc f g h := by
-    funext s
-    dsimp [Mul.mul]
-    rcases h s with ⟨s1, _⟩
-    rcases g s1 with ⟨s2, _⟩
-    rcases f s2 with ⟨s3, b3⟩
-    rfl
-
-abbrev MonoidTransType (σ β : Type _) : Type _ := WithOne (TransType σ β)
-
-section Closure
-variable {α : Type u} {σ : Type v} {β : Type w}
-variable (M : MealyMachine α σ β)
-
-def mealyGenerators : Set (MonoidTransType σ β) :=
-  Set.range (fun (a : α) => WithOne.coe (fun (s : σ) =>
-    let (b, s') := M.step s a
-    (s', b)
-  ))
-
-def MealySubmonoid : Submonoid (MonoidTransType σ β) :=
-  Submonoid.closure (mealyGenerators M)
-
-def TransitionClosureSet : Type _ := MealySubmonoid M
-
-end Closure
+-- theorem prefSemi_eq_evalFrom (M : MealyMachine α σ β) (q : σ) (inputs : List α) :
+--   (prefSemi (inputs.map (inputToSemigroupElem M))).map (fun e => (e.val q).1) =
+--   MealyMachine.evalFrom q M inputs := by
+--   cases inputs with
+--   | nil => rfl
+--   | cons x xs =>
+--     dsimp [prefSemi, List.map, MealyMachine.evalFrom, inputToSemigroupElem, inputToTrans]
+--     rw [prefSemiAux_eq_evalFrom]
+--     rfl
 
 open MealyMachine
-
-def KrohnRhodesTheorem {α β : Type u} (f : List α → List β ) :
-  sequentialFunction f → ∃ (l : ListOfListFunctions α β), isListOfPrimeFunction l ∧ l.eval = f := by
-  sorry
 
 def prefAux {M} [Monoid M] : M → List M → List M
 | _acc, [] => []
@@ -63,9 +46,12 @@ def CorrectPrefSubG {M} [Monoid M]
     (∀ x, x ∈ l → x = 1 ∨ x ∈ G) →
     f l = pref l
 
+
 instance fintypeGen (M : Type) (G : Set M) [Monoid M] [Fintype M] : Fintype (Submonoid.closure G) := sorry
 
-instance fintypeSubset (M : Type) (G : Set M)  [Fintype M] : Fintype G := sorry
+instance fintypeGenS (M : Type) (G : Set M) [Semigroup M] [Fintype M] : Fintype (Subsemigroup.closure G) := sorry
+
+instance fintypeSubset (M : Type) (G : Set M) [Fintype M] : Fintype G := sorry
 
 def unitMachine {M} [Fintype M] : MealyMachine M Unit M :=
 { start := (),
@@ -244,7 +230,7 @@ theorem induction_theorem
   | _ G ih => exact step G ih
 
 
-lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M] ( G : Set M ) (m n : Nat)
+lemma CorrectPrefSubG_ConstructableAux {M : Type} [Monoid M] [DecidableEq M] [Fintype M] ( G : Set M ) (m n : Nat)
   (hn : Fintype.card ↥(Submonoid.closure G) ≤ n) (hm : Fintype.card ↥G ≤ m) :
   ∃ (f : List M → List M), CorrectPrefSubG G f ∧ CompositionOfPrimes f := by
   induction n with
@@ -354,4 +340,202 @@ lemma CorrectPrefSubG_ConstructableAux {M} [Monoid M] [DecidableEq M] [Fintype M
       · apply revMachine_is_primeSequential
         exact h_equalsm
 
+def prefSemiAux {M} [Semigroup M] (currMul : M) (input_list : List M) : List M :=
+match input_list with
+| [] => []
+| x :: xs =>
+  let acc' := currMul * x
+  acc' :: prefSemiAux acc' xs
+
+def prefSemi {M} [Semigroup M] : List M → List M
+| [] => []
+| x :: xs => x :: prefSemiAux x xs
+
+def CorrectPrefSubG_S {M} [Semigroup M]
+    (G : Set M) (f : List M → List M) : Prop :=
+  ∀ l,
+    (∀ x, x ∈ l → x ∈ G) →
+    f l = prefSemi l
+
+def TransType (σ β : Type _) : Type _ := σ → β × σ
+
+def inputToTrans (M : MealyMachine α σ β) (a : α) : TransType σ β :=
+  fun s => M.step s a
+
+instance (σ β : Type _) : Semigroup (TransType σ β) where
+  mul f g := fun s =>
+    let (b1, s') := f s
+    let (b2, s'') := g s'
+    (b2, s'')
+
+  mul_assoc f g h := by
+    funext s
+    dsimp [Mul.mul]
+    rcases f s with ⟨b1, s1⟩
+    rcases g s1 with ⟨b2, s2⟩
+    rcases h s2 with ⟨b3, s3⟩
+    rfl
+
+section Closure
+variable {α : Type u} {σ : Type v} {β : Type w}
+variable (M : MealyMachine α σ β)
+
+def mealyGenerators : Set (TransType σ β) :=
+  Set.range (fun a => inputToTrans M a)
+
+def MealySubsemigroup : Subsemigroup (TransType σ β) :=
+  Subsemigroup.closure (mealyGenerators M)
+
+def TransitionClosureSet : Type _ := MealySubsemigroup M
+
+def inputToSemigroupElem (M : MealyMachine α σ β) (a : α) : MealySubsemigroup M :=
+  have h : inputToTrans M a ∈ mealyGenerators M := by
+    exact Set.mem_range_self a
+  ⟨inputToTrans M a, Subsemigroup.subset_closure h⟩
+
+end Closure
+
+lemma TransType.mul_snd (f g : TransType σ β) (s : σ) :
+  ((f * g) s).2 = (g (f s).2).2 := by
+  rfl
+
+lemma TransType.mul_fst (f g : TransType σ β) (s : σ) :
+  ((f * g) s).1 = (g (f s).2).1 := by
+  rfl
+
+lemma prefSemiAux_eq_evalFrom (M : MealyMachine α σ β) (inputs : List α)
+  (acc : MealySubsemigroup M) (q : σ) :
+  (prefSemiAux acc (inputs.map (inputToSemigroupElem M))).map (fun e => (e.val q).1) =
+  MealyMachine.evalFrom (acc.val q).2 M inputs := by
+  induction inputs generalizing acc with
+  | nil =>
+  trivial
+  | cons h t ih =>
+  simp [evalFrom,prefSemiAux]
+  constructor
+  · simp [inputToSemigroupElem]
+    unfold inputToTrans
+    simp [TransType.mul_fst]
+  · have h1 : (M.4 (acc.val q).2 h).2 = ((acc * inputToSemigroupElem M h).val q).2 := by
+      simp [inputToSemigroupElem,inputToTrans,TransType.mul_snd]
+    rw [h1]
+    unfold List.unattach
+    simp only [List.map_map]
+    apply ih
+
+lemma prefSemiAux_eq_eval (M : MealyMachine α σ β) (inputs : List α) :
+  (prefSemi (inputs.map (inputToSemigroupElem M))).map (fun e => (e.val M.start).1) =
+  M.eval inputs := by
+  match inputs with
+  | [] =>
+  trivial
+  | h :: t =>
+  simp [prefSemi]
+  simp [MealyMachine.eval,evalFrom]
+  constructor
+  · simp [inputToSemigroupElem]
+    unfold inputToTrans
+    simp [TransType.mul_snd, TransType.mul_fst]
+  · unfold List.unattach
+    simp only [List.map_map]
+    apply prefSemiAux_eq_evalFrom
+
+theorem compositionOfPrimes_sandwich {A B C : Type} [Fintype A] [Fintype B] [Fintype C]
+    (g1 : A → B) (g2 : B → C) (f' : List B → List B)
+    (h : CompositionOfPrimes f') :
+    CompositionOfPrimes (fun l => List.map g2 (f' (List.map g1 l))) := by
+  obtain ⟨l', hl'⟩ := h
+  refine ⟨ListOfListFunctions.cons (List.map g1)
+      (ListOfListFunctions.concat l'
+        (ListOfListFunctions.cons (List.map g2) (ListOfListFunctions.nil C))), ?_, ?_⟩
+  · refine ⟨primeSeq_map g1, ?_⟩
+    rw [ListOfListFunctions.concat_all]
+    exact ⟨hl'.1, primeSeq_map g2, trivial⟩
+  · funext l
+    simp only [ListOfListFunctions.eval, Function.comp]
+    rw [← ListOfListFunctions.concat_eval]
+    simp only [ListOfListFunctions.eval, Function.comp, id, ← hl'.2]
+
+theorem prefAux_map_coe {M} [Semigroup M] (acc : M) (l : List M) :
+    prefAux (acc : WithOne M) (List.map WithOne.coe l)
+      = List.map WithOne.coe (prefSemiAux acc l) := by
+  induction l generalizing acc <;> simp +decide [ *, prefAux, prefSemiAux ];
+  rename_i k hk ih; exact ih _;
+theorem pref_map_coe {M} [Semigroup M] (l : List M) :
+    pref (List.map WithOne.coe l) = List.map WithOne.coe (prefSemi l) := by
+  induction' l with x l ih;
+  · rfl;
+  · convert congr_arg ( fun l => WithOne.coe x :: l ) ( prefAux_map_coe x l ) using 1
+
+instance instFintypeWithOne {M : Type*} [Fintype M] : Fintype (WithOne M) :=
+  inferInstanceAs (Fintype (Option M))
+
+
+lemma CorrectPrefSubG_ConstructableAux_S {M} [Semigroup M] [DecidableEq M] [Fintype M]
+    ( G : Set M ) (m n : Nat)
+    (hn : Fintype.card (Subsemigroup.closure G) ≤ n) (hm : Fintype.card ↥G ≤ m) :
+    ∃ (f : List M → List M), CorrectPrefSubG_S G f ∧ CompositionOfPrimes f := by
+  classical
+  rcases isEmpty_or_nonempty M with hM | hM
+  · -- `M` is empty: the only valid input list is `[]`.
+    refine ⟨id, ?_, ⟨ListOfListFunctions.nil M, trivial, rfl⟩⟩
+    intro l _
+    cases l with
+    | nil => rfl
+    | cons x xs => exact (IsEmpty.false x).elim
+  · -- `M` is nonempty: adjoin a unit and use the monoid construction.
+    obtain ⟨d⟩ := hM
+    let extract : WithOne M → M := fun x => WithOne.recOneCoe d id x
+    let G' : Set (WithOne M) := WithOne.coe '' G
+    obtain ⟨f', hcorrect, hcomp⟩ := CorrectPrefSubG_ConstructableAux G'
+        _ _ (le_refl _) (le_refl _)
+    refine ⟨fun l => List.map extract (f' (List.map WithOne.coe l)), ?_, ?_⟩
+    · intro l hl
+      have hpred : ∀ x, x ∈ List.map WithOne.coe l → x = 1 ∨ x ∈ G' := by
+        intro x hx
+        rcases List.mem_map.1 hx with ⟨a, ha, rfl⟩
+        exact Or.inr ⟨a, hl a ha, rfl⟩
+      have hf := hcorrect (List.map WithOne.coe l) hpred
+      show List.map extract (f' (List.map WithOne.coe l)) = prefSemi l
+      rw [hf, pref_map_coe, List.map_map]
+      have hid : extract ∘ WithOne.coe = id := by funext a; rfl
+      rw [hid, List.map_id]
+    · exact compositionOfPrimes_sandwich WithOne.coe extract f' hcomp
+
+
+lemma existsPrimeList_for_MM {α σ β : Type} (M : MealyMachine α σ β) :
+    ∃ (l : ListOfListFunctions α β), isListOfPrimeFunction l ∧ l.eval = M.eval := by
+  haveI : Fintype α := M.alphaFin
+  haveI : Fintype β := M.betaFin
+  haveI : Fintype σ := M.statesFin
+  haveI : Finite (TransType σ β) := inferInstanceAs (Finite (σ → β × σ))
+  haveI : Fintype (TransType σ β) := Fintype.ofFinite _
+  haveI : DecidableEq (TransType σ β) := Classical.decEq _
+  haveI : Fintype ↥(MealySubsemigroup M) := Fintype.ofFinite _
+  haveI : DecidableEq ↥(MealySubsemigroup M) := Subtype.instDecidableEq
+  let G : Set ↥(MealySubsemigroup M) := Set.range (inputToSemigroupElem M)
+  obtain ⟨f', hcorr, hcomp⟩ :=
+    CorrectPrefSubG_ConstructableAux_S G _ _ (Nat.le_refl _) (Nat.le_refl _)
+  have hkey : M.eval = (fun l => List.map (fun e : ↥(MealySubsemigroup M) => (e.val M.start).1)
+      (f' (List.map (inputToSemigroupElem M) l))) := by
+    funext l
+    have hmem : ∀ x, x ∈ List.map (inputToSemigroupElem M) l → x ∈ G := by
+      intro x hx
+      rcases List.mem_map.1 hx with ⟨a, _, rfl⟩
+      exact Set.mem_range_self a
+    rw [hcorr (List.map (inputToSemigroupElem M) l) hmem]
+    exact (prefSemiAux_eq_eval M l).symm
+  rw [hkey]
+  exact compositionOfPrimes_sandwich (inputToSemigroupElem M)
+      (fun e : ↥(MealySubsemigroup M) => (e.val M.start).1) f' hcomp
+
+theorem KrohnRhodesTheorem {α β : Type} (f : List α → List β) :
+  sequentialFunction f → ∃ (l : ListOfListFunctions α β), isListOfPrimeFunction l ∧ l.eval = f := by
+  intro  s
+  unfold sequentialFunction at s
+  obtain ⟨ states , M , valuation ⟩ := s
+  obtain ⟨ l , pl ⟩ := existsPrimeList_for_MM M
+  use l
+  rw [← valuation]
+  exact pl
 --close MealyMachine
