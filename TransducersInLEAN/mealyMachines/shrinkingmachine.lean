@@ -125,3 +125,31 @@ theorem s3'_to_s4'' {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word
   ∃ ( l : ListOfListFunctions (Submonoid.closure G) (Submonoid.closure G) ) ,
 isListOfPrimeFunction l ∧ l.eval (WordOf' word (s3' G g)) = WordOf' word (s4'' G g) := by sorry
 
+def s2'_times_s4''{M} [Monoid M] [DecidableEq M] [Fintype M] (G : Set M) (g : G)
+    (word : List G) (i : Fin word.length) :
+  ((Submonoid.closure G) ⊕ Unit) × (Submonoid.closure G) :=
+  ⟨ s2' G g word i , s4'' G g word i ⟩
+
+theorem s2'_s4''_to_s5' {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G) :
+  ∃ ( l : ListOfListFunctions (((Submonoid.closure G) ⊕ Unit) × (Submonoid.closure G)) (ClosureShiftOrOne G g.1) ) ,
+isListOfPrimeFunction l ∧ l.eval (WordOf' word (s2'_times_s4'' G g)) = WordOf' word (s5' G g) := by sorry
+
+theorem s5'_to_s6' {n m} {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G)
+  (ih' : ∀ (G : Set M) (m : ℕ),
+  Fintype.card ↥(Submonoid.closure G) ≤ n → Fintype.card ↑G ≤ m → ∃ f, CorrectPrefSubG G f ∧ CompositionOfPrimes f)
+  (hn : Fintype.card ↥(Submonoid.closure G) ≤ n + 1) (hm : Fintype.card ↑G ≤ m + 1) :
+  ∃ ( l : ListOfListFunctions (ClosureShiftOrOne G g.1) (Submonoid.closure G)),
+isListOfPrimeFunction l ∧ l.eval (WordOf' word (s5' G g)) = WordOf' word (s6' G g) := by sorry
+
+def s2'_times_s6' {M} [Monoid M] [DecidableEq M] [Fintype M] (G : Set M) (g : G)
+    (word : List G) (i : Fin word.length) :
+  ((Submonoid.closure G) ⊕ Unit) × (Submonoid.closure G) :=
+  ⟨ s2' G g word i , s6' G g word i ⟩
+
+
+theorem s2'_s6'_to_s7' {n m} {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G)
+  (ih' : ∀ (G : Set M) (m : ℕ),
+  Fintype.card ↥(Submonoid.closure G) ≤ n → Fintype.card ↑G ≤ m → ∃ f, CorrectPrefSubG G f ∧ CompositionOfPrimes f)
+  (hn : Fintype.card ↥(Submonoid.closure G) ≤ n + 1) (hm : Fintype.card ↑G ≤ m + 1) :
+  ∃ ( l : ListOfListFunctions (((Submonoid.closure G) ⊕ Unit) × (Submonoid.closure G)) (Submonoid.closure G)),
+isListOfPrimeFunction l ∧ l.eval (WordOf' word (s2'_times_s6' G g)) = WordOf' word (s7' G g) := by sorry
