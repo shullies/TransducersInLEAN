@@ -8,7 +8,7 @@ import Mathlib.Data.List.OfFn
 
 open MealyMachine
 
-def s0 {α σ β} (MM : MealyMachine α σ β) (word : List (α ⊕ Unit)) (i : Fin word.length) : α ⊕ Unit  :=
+def s0 {α σ β} (_MM : MealyMachine α σ β) (word : List (α ⊕ Unit)) (i : Fin word.length) : α ⊕ Unit  :=
   word[i]
 
 noncomputable def s1 {α σ β} (MM : MealyMachine α σ β) (h : ReversibleMealyMachine MM) (word : List (α ⊕ Unit)) (i : Fin word.length) : Equiv.Perm σ :=

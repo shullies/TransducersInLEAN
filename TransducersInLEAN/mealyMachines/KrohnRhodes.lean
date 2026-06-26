@@ -233,7 +233,7 @@ theorem induction_theorem
 lemma CorrectPrefSubG_ConstructableAux {M : Type} [Monoid M] [DecidableEq M] [Fintype M] ( G : Set M ) (m n : Nat)
   (hn : Fintype.card ↥(Submonoid.closure G) ≤ n) (hm : Fintype.card ↥G ≤ m) :
   ∃ (f : List M → List M), CorrectPrefSubG G f ∧ CompositionOfPrimes f := by
-  induction n with
+  induction n generalizing G m with
   |zero =>
   absurd hn
   push Not
@@ -242,8 +242,8 @@ lemma CorrectPrefSubG_ConstructableAux {M : Type} [Monoid M] [DecidableEq M] [Fi
   have h : (Submonoid.closure G : Set M).Nonempty :=
     ⟨1, this⟩
   exact Fintype.card_pos (α := Submonoid.closure G)
-  |succ n =>
-  induction m with
+  |succ n ih' =>
+  induction m generalizing G with
     |zero =>
     rw [Nat.le_zero, Fintype.card_eq_zero_iff] at hm
     use unitMachine.eval
@@ -287,7 +287,7 @@ lemma CorrectPrefSubG_ConstructableAux {M : Type} [Monoid M] [DecidableEq M] [Fi
         · apply unitMachine_is_primeSequential
         · trivial
       ·trivial
-    | succ m =>
+    | succ m ih =>
     by_cases h : ∃ g ∈ G, (fun x => x * g) '' (Submonoid.closure G : Set M) ⊂ (Submonoid.closure G : Set M)
     · sorry
     · have h_subset : ∀ g ∈ G,  (fun x ↦ x * g) '' ↑(Submonoid.closure G) ⊆ (Submonoid.closure G) := by
