@@ -6,6 +6,19 @@ def prefAux {M} [Monoid M] : M → List M → List M
   let acc' := acc * x
   acc' :: prefAux acc' xs
 
+def prefixProduct_reversed {k : ℕ} [Mul S] [One S] (f : Fin k → S) (i : ℕ) (hi : i < k) :=
+  match i with
+  | .zero => f ⟨0, by omega⟩
+  | .succ x =>  f ⟨x.succ, hi⟩ * prefixProduct_reversed f x (by omega)
+
+def infixProduct_reversed {k : ℕ} {S : Type*} [Mul S] [One S] (f : Fin k → S) (i : ℕ) (j : ℕ) (hi : i < k) (hj : j < k) : S :=
+  if _h : j ≤ i then 1 else
+  match j, hj with
+  | .zero, _ => 1
+  | .succ x, hj' =>  f ⟨x.succ, hj'⟩ * (infixProduct_reversed f i x hi (by omega))
+termination_by j
+decreasing_by omega
+
 def pref [Monoid M] : List M → List M :=
   prefAux 1
 
@@ -49,8 +62,8 @@ def s2' {M} [Monoid M] [DecidableEq M] [Fintype M] (G : Set M) (g : G)
     else
       let v:=
       match (prevUnit (WordOf' word (s1' G g)) i.1 (by rw [← len_WordOf'] ; exact i.2 ;) ) with
-      | none => prefixProduct (closure_lift (s0' word)) i.1 i.2
-      | some val => infixProduct (closure_lift (s0' word)) val.1 i.1
+      | none => prefixProduct_reversed (closure_lift (s0' word)) i.1 i.2
+      | some val => infixProduct_reversed (closure_lift (s0' word)) val.1 i.1
         (by rw [len_WordOf' (f := s1' G g)]; exact val.2;) i.2
       Sum.inl v
 
@@ -94,22 +107,37 @@ def s6' {M} [Monoid M] [DecidableEq M] [Fintype M] (G : Set M) (g : G)
     (word : List (G)) (i : Fin word.length) : (Submonoid.closure G) :=
     match (prevUnit (WordOf' word (s1' G g)) i.1 (by rw [← len_WordOf'] ; exact i.2 ;) ) with
     | none => 1
-    | some val => prefixProduct (closure_lift (s0' word)) val.1
+    | some val => prefixProduct_reversed (closure_lift (s0' word)) val.1
       (by rw [len_WordOf' (f := s1' G g)]; exact val.2;)
 
 def s7' {M} [Monoid M] [DecidableEq M] [Fintype M] (G : Set M) (_g : G)
     (word : List (G)) (i : Fin word.length) : (Submonoid.closure G) :=
-    prefixProduct (closure_lift (s0' word)) i.1 i.2
+    prefixProduct_reversed (closure_lift (s0' word)) i.1 i.2
 
-theorem s0'_to_s1' {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G) :
-  ∃ ( l : ListOfListFunctions G ((↥(G \ {g.val})) ⊕ Unit) ) ,
-isListOfPrimeFunction l ∧ l.eval (WordOf' word s0') = WordOf' word (s1' G g) := by sorry
+theorem map_s0'_eq_s1' [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G) :
+  List.map (G_map g) (WordOf' word s0') = WordOf' word (s1' G g) := by
+    simp [WordOf', s1', s0']
+
 
 instance fintypeGen (M : Type) (G : Set M) [Monoid M] [Fintype M] : Fintype (Submonoid.closure G) := sorry
 
 instance fintypeGenS (M : Type) (G : Set M) [Semigroup M] [Fintype M] : Fintype (Subsemigroup.closure G) := sorry
 
 instance fintypeSubset (M : Type) (G : Set M) [Fintype M] : Fintype G := sorry
+
+
+theorem s0'_to_s1' {M : Type} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G)
+  (g : G) :
+  ∃ ( l : ListOfListFunctions G ((↥(G \ {g.val})) ⊕ Unit) ) ,
+isListOfPrimeFunction l ∧ l.eval (WordOf' word s0') = WordOf' word (s1' G g) := by
+  use (ListOfListFunctions.cons (List.map (G_map g)) (ListOfListFunctions.nil ((↥(G \ {g.val})) ⊕ Unit)))
+  constructor
+  simp [isListOfPrimeFunction,ListOfListFunctions.all]
+  apply primeSeq_map
+  simp [ListOfListFunctions.eval, map_s0'_eq_s1']
+
+-- theorem mapC_prefix_s1'_eq_s2' {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G) :
+--   (mapC (pref (M := M))) (WordOf' word (s1' G g)) = WordOf' word (s2' G g) := sorry
 
 theorem s1'_to_s2' {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G)
   (ih : ∀ (G : Set M), Fintype.card ↥(Submonoid.closure G) ≤ n + 1 → Fintype.card ↑G ≤ m → ∃ f, CorrectPrefSubG G f ∧ CompositionOfPrimes f)
@@ -137,7 +165,8 @@ isListOfPrimeFunction l ∧ l.eval (WordOf' word (s2'_times_s4'' G g)) = WordOf'
 theorem s5'_to_s6' {n m} {M} [Monoid M] [DecidableEq M] [Fintype M] {G : Set M} (word : List G) (g : G)
   (ih' : ∀ (G : Set M) (m : ℕ),
   Fintype.card ↥(Submonoid.closure G) ≤ n → Fintype.card ↑G ≤ m → ∃ f, CorrectPrefSubG G f ∧ CompositionOfPrimes f)
-  (hn : Fintype.card ↥(Submonoid.closure G) ≤ n + 1) (hm : Fintype.card ↑G ≤ m + 1) :
+  (hn : Fintype.card ↥(Submonoid.closure G) ≤ n + 1) (hm : Fintype.card ↑G ≤ m + 1)
+  (shrinking_g : (fun x ↦ x * g) '' ↑(Submonoid.closure G) ⊂ ↑(Submonoid.closure G)):
   ∃ ( l : ListOfListFunctions (ClosureShiftOrOne G g.1) (Submonoid.closure G)),
 isListOfPrimeFunction l ∧ l.eval (WordOf' word (s5' G g)) = WordOf' word (s6' G g) := by sorry
 

@@ -67,3 +67,16 @@ def isListOfPrimeFunction {α β : Type u} (l : ListOfListFunctions α β) : Pro
 
 def CompositionOfPrimes {α β} (f : List α → List β) : Prop :=
   ∃ (l: ListOfListFunctions α β), isListOfPrimeFunction l ∧ l.eval = f
+
+theorem prime_machine_eval_is_composition_of_primes {α σ β} (MM : MealyMachine α σ β)
+  (h : PrimeMachine MM) :
+  CompositionOfPrimes MM.eval := by
+  unfold CompositionOfPrimes
+  use (ListOfListFunctions.cons MM.eval (ListOfListFunctions.nil β))
+  constructor
+  · dsimp [isListOfPrimeFunction,ListOfListFunctions.all]
+    constructor
+    apply primeSeqeuntial_of_primeMM
+    exact h
+    trivial
+  · simp [ListOfListFunctions.eval]
